@@ -21,7 +21,6 @@ class bounding_box():
 
     def is_within_image(bbox, img):
         h, w, _ = img.shape
-        assert (w == 1920) & (h == 1080), "Input image shape incorrect"
 
         xmin, ymin, xmax, ymax = bbox
         if (xmin < 0 or ymin < 0 or xmax > w or ymax > h):

@@ -9,7 +9,8 @@ sys.path.append("..")
 
 def rotate(image, points, angle):
     """
-    Function to rotate the image and points by a specified angle.
+    Function to rotate the image and points by a specified angle. Returns
+    the image cropped with updated annotation points. 
     """
     h, w, _ = image.shape
     cx, cy = (w / 2), (h / 2)
@@ -44,18 +45,17 @@ def rotate(image, points, angle):
     return out_img, out_annots
 
 
-def _rotation_crop(rotated_img, rotated_corners, rotated_annots, shape):
+def _rotation_crop(img, corners, points, shape):
     """
     Crop the empty regions of image from rotation. Return cropped image.
-    TODO: change constant 4.
     """
     h, w, _ = shape
-    d_xmin = np.abs(0 - rotated_corners[3][0])
-    d_xmax = np.abs(w - rotated_corners[1][0])
-    d_ymin = np.abs(0 - rotated_corners[0][1])
-    d_ymax = np.abs(h - rotated_corners[2][1])
+    d_xmin = np.abs(0 - corners[3][0])
+    d_xmax = np.abs(w - corners[1][0])
+    d_ymin = np.abs(0 - corners[0][1])
+    d_ymax = np.abs(h - corners[2][1])
 
-    out_img = rotated_img[d_ymin:(h - d_ymax), d_xmin:(w - d_xmax), :]
-    out_annots = rotated_annots - np.array([[d_xmin, d_ymin]] * 4)
+    out_img = img[d_ymin:(h - d_ymax), d_xmin:(w - d_xmax), :]
+    out_annots = points - np.array([[d_xmin, d_ymin]] * points.shape[0])
 
     return out_img, out_annots
