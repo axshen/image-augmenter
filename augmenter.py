@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 import functions
-from utils import bounding_box, image_points, cv_draw
+from tools import bounding_box, image_points
 
 
 class Augmenter:
@@ -16,7 +16,7 @@ class Augmenter:
 
     def generate_images(self, n, *args):
         """
-        Utilises sequence to generate n images. 
+        Utilises sequence to generate n images.
         """
 
     def sequence(self, *args):
@@ -83,22 +83,34 @@ class Augmenter:
     def _task(self, img, annots, func, *args):
         """
         Implement single augmentation function. Changes data format
-        if necessary and forces generated points to be within. 
+        if necessary and forces generated points to be within.
         """
         if (self.format == "bbox"):
             annot_points = bounding_box.to_corner_points(annots)
             out_img, out_annots = func(img, annot_points, *args)
             out_annots = image_points.to_bounding_box(out_annots)
+
+            # repeat if no change
+            within = bounding_box.is_within_image(out_annots, out_img)
+            if not within:
+                out_img, out_annots = func(img, annots, *args)
+
+                if not self.randomised:
+                    raise Exception(
+                        'Input augmentation argument always generates points outside cropped image.')
+
         elif (self.format == "points"):
-            out_img, out_annots = func(img, annots, *args)
+            annots_homog = image_points.homogenous_coordinates(annots)
+            out_img, out_annots = func(img, annots_homog, *args)
 
-        # repeat if no change
-        within = bounding_box.is_within_image(out_annots, out_img)
-        if not within:
-            out_img, out_annots = self._task(img, annots, func, *args)
+            # repeat if no change
+            within = image_points.are_within_image(out_annots, out_img)
+            if not within:
+                out_img, out_annots = out_img, out_annots = func(
+                    img, annots_homog, *args)
 
-            if not self.randomised:
-                raise Exception(
-                    'Specified augmentation parameter value leads points outside cropped image.')
+                if not self.randomised:
+                    raise Exception(
+                        'Input augmentation argument always generates points outside cropped image.')
 
         return out_img, out_annots

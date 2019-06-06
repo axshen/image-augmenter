@@ -1,3 +1,4 @@
 __pycache__
-./archive/
+archive
+
 run_augmenter.py

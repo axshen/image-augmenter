@@ -1,4 +1,4 @@
-from utils import image_points
+from tools import image_points
 
 import cv2
 import numpy as np
@@ -28,6 +28,7 @@ def zoom(image, points, fx, fy):
     out_annots = points
     out_annots[:, 0] = points[:, 0] * fx - int(w_low)
     out_annots[:, 1] = points[:, 1] * fy - int(h_low)
+    out_annots = out_annots[:, :-1]
 
     out_img, out_annots = image_points.rescale(
         out_annots.astype(int), out_img, image.shape)

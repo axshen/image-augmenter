@@ -16,5 +16,6 @@ def flip(img, points, axis):
     # vertical flip
     elif (axis == 0):
         out_annots[:, 1] = h - points[:, 1]
+    out_annots = out_annots[:, :-1]
 
     return out_img, out_annots.astype(int)
