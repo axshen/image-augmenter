@@ -34,6 +34,16 @@ class Augmenter:
         out_img, out_annots = self._task(img, annots, functions.rotate, angle)
         return out_img, out_annots
 
+    # TODO: change translate so doesn't doesn't always cut from du, dv (top left)
+    def translate(self, img, annots, du, dv):
+        if self.randomised:
+            du = random.randint(0, du)
+            dv = random.randint(0, dv)
+
+        out_img, out_annots = self._task(
+            img, annots, functions.translate, du, dv)
+        return out_img, out_annots
+
     def flip(self, img, annots, axis):
         out_img, out_annots = self._task(img, annots, functions.flip, axis)
         return out_img, out_annots
@@ -46,30 +56,20 @@ class Augmenter:
         out_img, out_annots = self._task(img, annots, functions.zoom, fx, fy)
         return out_img, out_annots
 
-    # TODO: change translate so doesn't doesn't always cut from du, dv (top left)
-    def translate(self, img, annots, du, dv):
+    def gaussian_blur(self, img, annots, sigma):
         if self.randomised:
-            du = random.randint(0, du)
-            dv = random.randint(0, dv)
+            radius = random.randint(0, int(sigma / 2)) * 2 + 1
 
-        out_img, out_annots = self._task(
-            img, annots, functions.translate, du, dv)
-        return out_img, out_annots
-
-    def gaussian_blur(self, img, annots, radius):
-        if self.randomised:
-            radius = random.randint(0, int(radius / 2)) * 2 + 1
-
-        blurred_image = cv2.GaussianBlur(img, (radius, radius), 0)
+        blurred_image = cv2.GaussianBlur(img, (sigma, sigma), 0)
 
         return blurred_image, annots
 
-    def random_noise(self, img, annots, amplitude):
+    def random_noise(self, img, annots, A):
         if self.randomised:
-            amplitude = random.random() * amplitude
+            amplitude = random.random() * A
 
         empty_noise = np.empty(img.shape, np.uint8)
-        noise = cv2.randn(empty_noise, (0), (amplitude))
+        noise = cv2.randn(empty_noise, (0), (A))
 
         if (random.random() > 0.5):
             out_img = img + noise
