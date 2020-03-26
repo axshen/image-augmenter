@@ -1,23 +1,21 @@
 import cv2
 import random
 import numpy as np
+import sys
 
 import functions
 from tools import bounding_box, image_points
 
 
 class Augmenter:
-    def __init__(self, randomised, format):
-        assert (format == "bbox") | (
-            format == "points"), "Incorrect annotation format provided ('bbox' or 'points')"
-
+    def __init__(self, randomised):
         self.randomised = randomised
-        self.format = format
 
     def generate_images(self, n, *args):
         """
         Utilises sequence to generate n images.
         """
+        pass
 
     def sequence(self, *args):
         """
@@ -27,90 +25,87 @@ class Augmenter:
 
     def rotate(self, img, annots, angle):
         assert angle < 30, "Max angle for image rotation too large."
-
-        if self.randomised:
-            angle = round((random.random() - 0.5) * 2 * angle)
-
-        out_img, out_annots = self._task(img, annots, functions.rotate, angle)
+        out_img, out_annots = self._task(
+            img, annots, functions.rotate, angle=angle)
         return out_img, out_annots
 
-    # TODO: change translate so doesn't doesn't always cut from du, dv (top left)
     def translate(self, img, annots, du, dv):
-        if self.randomised:
-            du = random.randint(0, du)
-            dv = random.randint(0, dv)
-
         out_img, out_annots = self._task(
-            img, annots, functions.translate, du, dv)
+            img, annots, functions.translate, du=du, dv=dv)
         return out_img, out_annots
 
     def flip(self, img, annots, axis):
-        out_img, out_annots = self._task(img, annots, functions.flip, axis)
+        out_img, out_annots = self._task(
+            img, annots, functions.flip, axis=axis)
         return out_img, out_annots
 
     def zoom(self, img, annots, fx, fy):
-        if self.randomised:
-            fx = (fx - 1.) * random.random() + 1.
-            fy = (fy - 1.) * random.random() + 1.
-
-        out_img, out_annots = self._task(img, annots, functions.zoom, fx, fy)
+        out_img, out_annots = self._task(
+            img, annots, functions.zoom, fx=fx, fy=fy)
         return out_img, out_annots
 
     def gaussian_blur(self, img, annots, sigma):
-        if self.randomised:
-            radius = random.randint(0, int(sigma / 2)) * 2 + 1
-
+        sigma = random.randint(0, int(sigma / 2)) * 2 + 1
         blurred_image = cv2.GaussianBlur(img, (sigma, sigma), 0)
-
         return blurred_image, annots
 
-    def random_noise(self, img, annots, A):
-        if self.randomised:
-            amplitude = random.random() * A
-
-        empty_noise = np.empty(img.shape, np.uint8)
-        noise = cv2.randn(empty_noise, (0), (A))
-
-        if (random.random() > 0.5):
-            out_img = img + noise
-        else:
-            out_img = img - noise
-
-        out_img = np.abs(out_img)
-
+    def gaussian_noise(self, img, annots, sigma):
+        noise = np.random.normal(0, sigma, (img.shape))
+        out_img = img + noise
+        out_img = out_img.clip(min=0)
         return out_img, annots
 
-    def _task(self, img, annots, func, *args):
+    def _randomise_arguments(self, **kwargs):
         """
-        Implement single augmentation function. Changes data format
-        if necessary and forces generated points to be within.
+        Randomise keyword arguments provided. Will need to add a variable for each potential kwarg
+        case possible. This is only required when augmentation failure due to removal of points
+        is feasible.
+        TODO: Is there a more comprehensive way to do this (eg. cases in swift).
         """
-        if (self.format == "bbox"):
-            annot_points = bounding_box.to_corner_points(annots)
-            out_img, out_annots = func(img, annot_points, *args)
-            out_annots = image_points.to_bounding_box(out_annots)
+        if not self.randomised:
+            return
 
-            # repeat if no change
-            within = bounding_box.is_within_image(out_annots, out_img)
-            if not within:
-                out_img, out_annots = func(img, annots, *args)
+        randomised_args = {}
+        for key, value in kwargs.items():
+            # rotation
+            if key == "angle":
+                new_value = round((random.random() - 0.5) * 2 * value)
+            # translation
+            if key == "du" or key == "dv":
+                new_value = random.randint(-value, value)
+            # zoom
+            if key == "fx" or key == "fy":
+                new_value = (value - 1.) * random.random() + 1.
+            randomised_args[key] = new_value
 
-                if not self.randomised:
+        return randomised_args
+
+    def _task(self, img, annots, func, **kwargs):
+        """
+        Implement single augmentation function for an array of points.
+        """
+        original_kwargs = kwargs
+        kwargs = self._randomise_arguments(**original_kwargs)
+
+        annots = image_points.homogenous_coordinates(annots)
+        out_img, out_annots = func(img, annots, **kwargs)
+        within = image_points.are_within_image(out_annots, out_img)
+
+        # repeat if points lost in image
+        repeat_attempts = 0
+        if not within:
+            if not self.randomised:
+                raise Exception(
+                    'Input augmentation argument always removes points from augmented image.')
+
+            while not within:
+                kwargs = self._randomise_arguments(**original_kwargs)
+                out_img, out_annots = func(img, annots, **kwargs)
+                within = image_points.are_within_image(out_annots, out_img)
+
+                repeat_attempts += 1
+                if repeat_attempts > int(1e3):
                     raise Exception(
-                        'Input augmentation argument always generates points outside cropped image.')
-
-        elif (self.format == "points"):
-            annots_homog = image_points.homogenous_coordinates(annots)
-            out_img, out_annots = func(img, annots_homog, *args)
-
-            # repeat if no change
-            within = image_points.are_within_image(out_annots, out_img)
-            if not within:
-                out_img, out_annots = out_img, out_annots = func(
-                    img, annots_homog, *args)
-
-                if not self.randomised:
-                    raise Exception(
-                        'Input augmentation argument always generates points outside cropped image.')
+                        'Too many failed repeat augmentations.')
 
         return out_img, out_annots

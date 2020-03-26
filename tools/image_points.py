@@ -3,10 +3,9 @@ import numpy as np
 
 
 class image_points():
-    # points: np.array([[x1, y1],[x2, y2] ... [xn, yn]])
-
     def to_bounding_box(points):
         """
+        points: np.array([[x1, y1],[x2, y2] ... [xn, yn]])
         Take points describing corners of region and converts to bbox format.
         """
         xmin = np.min(points[:, 0])
